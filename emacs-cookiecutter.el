@@ -94,28 +94,47 @@ print(repo_dir, end='')" template)))
                            (list (substring key 0 1)
                                  (replace-regexp-in-string "[_-]+" " " key)
                                  (concat key "="))))
-         (v-options (vconcat ["Context"] options)))
+         (v-options (vconcat ["Context"] options))
+         (template-options
+          (vconcat ["Template"]
+                   (list (list "t" "Template" (concat "template="))))))
     (transient-replace-suffix
       'cookiecutter--ui
       (list 0)
+      template-options)
+    (transient-replace-suffix
+      'cookiecutter--ui
+      (list 1)
       v-options)
     (oset (get 'cookiecutter--ui 'transient--prefix)
-          :value (cl-loop for (key . value) in ctx
+          :value (cl-loop for (key . value)
+                          in (cons (cons 'template template) ctx)
                           collect (format "%s=%s" (symbol-name key) value)))
     (cookiecutter--ui)))
 
 ;; (cookiecutter--context "/home/laurencewarne/.cookiecutters/emacs-package-template/cookiecutter.json")
 
 (transient-define-prefix cookiecutter--ui ()
-  :value '("filter=nonempty")
+  :value '("???=nonempty")
+  ["Template"
+   ("t" "name" "" read-string)]
   ["Context"
-   ("f" "Filter" "" read-string)]
+   ("?" "???" "" read-string)]
   ["Actions"
    ("c" "Create"    cookiecutter--run)])
 
 (defun cookiecutter--run (args)
+  "Run cookiecutter using ARGS."
   (interactive (list (transient-args transient-current-command)))
-  (print args))
+  (let* ((template (cadr (split-string (car args) "=")))
+         (extra-args
+          (mapconcat (lambda (s)
+                       (replace-regexp-in-string "=\\(.*\\)$" "='\\1'" s))
+                     (cdr args) " "))
+         (cmd (format "cookiecutter %s %s" template extra-args)))
+    (print cmd)
+    ;;(shell-command cmd)
+    ))
 
 (provide 'emacs-cookiecutter)
 
