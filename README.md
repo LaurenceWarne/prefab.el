@@ -1,4 +1,4 @@
-# Cookiecutter for Emacs
+# Prefab.el: Project Generation for Emacs
 
 ## Installing
 
