@@ -55,28 +55,44 @@ from cookiecutter.replay import load
 import json
 
 config_dict = get_user_config()
-ctx = load(config_dict['replay_dir'], '%s')
-")
+try:
+    ctx = load(config_dict['replay_dir'], '%s')
+except:
+    ctx = generate_context(
+        context_file='%s',
+        default_context=config_dict['default_context'],
+    )")
 
-;; #ctx_ = generate_context(
-;; #    context_file='%s',
-;; #    default_context=config_dict['default_context'],
-;; #)
-(defun prefab-cookiecutter--context (template ctx-file)
+(defun prefab--cookiecutter-context (template ctx-file)
   "Return the cookiecutter context for TEMPLATE CTX-FILE."
-  (let ((src (format (concat prefab-cookiecutter-config-py "
-print(json.dumps(dict(ctx['cookiecutter'])))") template)))
-    (json-read-from-string
-     (shell-command-to-string
-      (format "%s -c \"%s\"" python-shell-interpreter src)))))
+  (let ((src (format "from cookiecutter.config import get_user_config
+from cookiecutter.generate import generate_context
+from cookiecutter.replay import load
+import json
 
-(defun prefab-cookiecutter--created-dir (template-dir ctx-file)
-  "Return the created directory implied by TEMPLATE-DIR and CTX-FILE."
-  (let ((src (format (concat prefab-cookiecutter-config-py "
-from cookiecutter.find import find_template
+config_dict = get_user_config()
+try:
+    ctx = load(config_dict['replay_dir'], '%s')
+except:
+    ctx = generate_context(
+        context_file='%s',
+        default_context=config_dict['default_context'],
+    )
+print(json.dumps(dict(ctx['cookiecutter'])))" template ctx-file)))
+    (cl-remove-if (lambda (alist-entry) (string= (car alist-entry) "_template"))
+                  (json-read-from-string
+                   (shell-command-to-string
+                    (format "%s -c \"%s\"" python-shell-interpreter src))))))
+
+(defun prefab--cookiecutter-created-dir (template-dir ctx)
+  "Return the created directory implied by TEMPLATE-DIR and CTX (an alist)."
+  (let* ((ctx-str (format "{'cookiecutter': %s}"
+                          (prefab--alist-to-python-dict ctx)))
+         (src (format "from cookiecutter.find import find_template
 from cookiecutter.environment import StrictEnvironment
 import os.path
 
+ctx = %s
 template_dir = find_template('%s')
 dirname = os.path.split(template_dir)[1]
 envvars = ctx.get('cookiecutter', {}).get('_jinja2_env_vars', {})
@@ -86,11 +102,12 @@ output_dir = '%s'
 name_tmpl = env.from_string(dirname)
 rendered_dirname = name_tmpl.render(**ctx)
 dir_to_create = os.path.normpath(os.path.join(output_dir, rendered_dirname))
-print(dir_to_create, end='')") ctx-file template-dir prefab-cookiecutter-output-dir)))
+print(dir_to_create, end='')"
+                      ctx-str template-dir prefab-cookiecutter-output-dir)))
     (shell-command-to-string
-      (format "%s -c \"%s\"" python-shell-interpreter src))))
+     (format "%s -c \"%s\"" python-shell-interpreter src))))
 
-(defun prefab-cookiecutter--download-template (template)
+(defun prefab--cookiecutter-download-template (template)
   "Download TEMPLATE and return the template directory."
   (let ((src (format "from cookiecutter.config import get_user_config
 from cookiecutter.repository import determine_repo_dir
@@ -109,42 +126,21 @@ print(repo_dir, end='')" template)))
     (shell-command-to-string
       (format "%s -c \"%s\"" python-shell-interpreter src))))
 
-(defun prefab-cookiecutter--existing-templates ()
+(defun prefab--cookiecutter-existing-templates ()
   "Return a list of local templates."
   (mapcan #'f-directories prefab-cookiecutter-template-sources))
-
-(defun prefab--cookiecutter-options ()
-  (let* ((templates (prefab-cookiecutter--existing-templates))
-         (alist (mapcar (lambda (p) (cons (f-filename p) p)) templates))
-         (template (completing-read "Template: " (mapcar #'f-filename templates)))
-         (template-path (or (alist-get template alist nil nil #'string=)
-                            (progn (message "Downloading template %s" template)
-                                   (prefab-cookiecutter--download-template template))))
-         (ctx-file (format "%s/cookiecutter.json" template-path))
-         (ctx (prefab-cookiecutter--context template ctx-file))
-         (options (cl-loop for (key-sym . value) in ctx
-                           for key = (symbol-name key-sym)
-                           collect
-                           (list (substring key 0 1)
-                                 (replace-regexp-in-string "[_-]+" " " key)
-                                 (concat key "="))))
-         (v-options (vconcat ["Context"] options))
-         (template-options
-          (vconcat ["Template"]
-                   (list (list "t" "Template" (concat "template="))))))
-    options))
 
 (defun prefab ()
   "Generate a project from a template."
   (interactive)
-  (let* ((templates (prefab-cookiecutter--existing-templates))
+  (let* ((templates (prefab--cookiecutter-existing-templates))
          (alist (mapcar (lambda (p) (cons (f-filename p) p)) templates))
          (template (completing-read "Template: " (mapcar #'f-filename templates)))
          (template-path (or (alist-get template alist nil nil #'string=)
                             (progn (message "Downloading template %s" template)
-                                   (prefab-cookiecutter--download-template template))))
+                                   (prefab--cookiecutter-download-template template))))
          (ctx-file (format "%s/cookiecutter.json" template-path))
-         (ctx (prefab-cookiecutter--context template ctx-file))
+         (ctx (prefab--cookiecutter-context template ctx-file))
          (options (cl-loop for (key-sym . value) in ctx
                            for key = (symbol-name key-sym)
                            collect
@@ -155,22 +151,15 @@ print(repo_dir, end='')" template)))
          (template-options
           (vconcat ["Template"]
                    (list (list "t" "Template" (concat "template="))))))
-    (transient-replace-suffix
-      'prefab--uri
-      (list 0)
-      template-options)
-    (transient-replace-suffix
-      'prefab--uri
-      (list 1)
-      v-options)
+    (transient-replace-suffix 'prefab--uri (list 0) template-options)
+    (transient-replace-suffix 'prefab--uri (list 1) v-options)
     (oset (get 'prefab--uri 'transient--prefix)
           :value (cl-loop for (key . value)
                           in (cons (cons 'template template) ctx)
                           collect (format "%s=%s" (symbol-name key) value)))
-    (prefab--uri)
-    (print (cookiecutter--created-dir template-path ctx-file))))
+    (prefab--uri)))
 
-;; (cookiecutter--context "emacs-package-template" "/home/laurencewarne/.cookiecutters/emacs-package-template/cookiecutter.json")
+;; (prefab--cookiecutter-context "emacs-package-template" "/home/laurencewarne/.cookiecutters/emacs-package-template/cookiecutter.json")
 
 (transient-define-prefix prefab--uri ()
   :value '("???=nonempty")
@@ -181,6 +170,11 @@ print(repo_dir, end='')" template)))
   ["Actions"
    ("c" "Create"    prefab--run)])
 
+(defun prefab--alist-to-python-dict (alist)
+  (format "{%s}" (cl-loop for (key . value) in alist
+                          collect
+                          (format "'%s': '%s'" key value))))
+
 (defun prefab--run (args)
   "Run cookiecutter using ARGS."
   (interactive (list (transient-args transient-current-command)))
@@ -189,8 +183,14 @@ print(repo_dir, end='')" template)))
           (mapconcat (lambda (s)
                        (replace-regexp-in-string "=\\(.*\\)$" "='\\1'" s))
                      (cdr args) " "))
-         (cmd (format "cookiecutter %s --no-input --output-dir %s %s" template cookiecutter-output-dir extra-args)))
+         (cmd (format "cookiecutter %s --no-input --output-dir %s %s" template cookiecutter-output-dir extra-args))
+         (ctx-alist (mapcar (lambda (c) (let ((sp (split-string c)))
+                                          (cons (car sp) (cadr sp))))
+                            args)))
     (message "Running command %s" cmd)
+    (print (cookiecutter--created-dir
+            (car prefab-cookiecutter-template-sources)
+            (cons (cons "_template" template) ctx-alist)))
     (shell-command cmd)))
 
 (provide 'prefab)
