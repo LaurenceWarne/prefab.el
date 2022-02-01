@@ -28,6 +28,7 @@
 (require 'python)
 (require 'json)
 (require 'f)
+(require 'subr-x)
 
 ;;; Custom variables
 
@@ -54,8 +55,30 @@
 ;;; Internal variables
 
 (defvar prefab-debug nil)
+(defvar prefab-all-keys
+  (mapcar #'char-to-string
+          (string-to-list
+           "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")))
 
 ;;; Internal functions
+
+(defun prefab--keys (keywords blacklist)
+  "Return an alist of keywords in KEYWORDS to keys not in BLACKLIST."
+  (if-let ((kw (car keywords)))
+      (let ((key (cl-find-if (lambda (c) (or (not (member c blacklist))
+                                             (not (member (upcase c) blacklist))))
+                             (mapcar #'char-to-string (string-to-list kw)))))
+        (cond ((member key blacklist)
+               (cons `(,kw . ,(upcase key))
+                     (prefab--keys (cdr keywords) `(,(upcase key) . ,blacklist))))
+              (key (cons `(,kw . ,key)
+                         (prefab--keys (cdr keywords) `(,key . ,blacklist))))
+              (t (if-let ((fallback
+                           (cl-find-if (lambda (c) (or (not (member c blacklist))))
+                                       prefab-all-keys)))
+                     (cons `(,kw . ,fallback)
+                           (prefab--keys (cdr keywords) `(,fallback . ,blacklist)))
+                   (error "Could not find a complete set of keys")))))))
 
 (defun prefab--cookiecutter-context (template ctx-file)
   "Return the cookiecutter context for TEMPLATE CTX-FILE."
@@ -179,10 +202,12 @@ print(repo_dir, end='')" template)))
                                    (prefab--cookiecutter-download-template template))))
          (ctx-file (format "%s/cookiecutter.json" template-path))
          (ctx (prefab--cookiecutter-context template ctx-file))
+         (keywords (mapcar (lambda (cell) (symbol-name (car cell))) ctx))
+         (key-lookup (prefab--keys keywords '("t" "c")))
          (options (cl-loop for (key-sym . value) in ctx
                            for key = (symbol-name key-sym)
                            collect
-                           (list (substring key 0 1)
+                           (list (alist-get key key-lookup)
                                  (replace-regexp-in-string "[_-]+" " " key)
                                  (concat key "="))))
          (v-options (vconcat ["Context"] options))
