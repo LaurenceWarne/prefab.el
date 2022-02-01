@@ -6,22 +6,18 @@
 ;; Homepage: https://github.com/laurencewarne/prefab.el
 ;; Package-Requires: ((emacs "27.1") (f "0.2.0") (transient "0.3.0"))
 
-
-;; This file is not part of GNU Emacs
-
-;; This file is free software; you can redistribute it and/or modify
+;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
-;; the Free Software Foundation; either version 3, or (at your option)
-;; any later version.
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
 
 ;; This program is distributed in the hope that it will be useful,
 ;; but WITHOUT ANY WARRANTY; without even the implied warranty of
 ;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ;; GNU General Public License for more details.
 
-;; For a full copy of the GNU General Public License
-;; see <https://www.gnu.org/licenses/>.
-
+;; You should have received a copy of the GNU General Public License
+;; along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -33,6 +29,7 @@
 (require 'json)
 (require 'f)
 
+;;; Custom variables
 
 (defgroup prefab nil
   "Emacs integration for cookiecutter."
@@ -50,9 +47,15 @@
   python-shell-interpreter
   "The path of the python executable to invoke for cookiecutter code.")
 
+;;; Constants
+
 (defconst prefab-version "0.1.0")
 
+;;; Internal variables
+
 (defvar prefab-debug nil)
+
+;;; Internal functions
 
 (defun prefab--cookiecutter-context (template ctx-file)
   "Return the cookiecutter context for TEMPLATE CTX-FILE."
@@ -70,10 +73,12 @@ except:
         default_context=config_dict['default_context'],
     )
 print(json.dumps(dict(ctx['cookiecutter'])))" template ctx-file)))
-    (cl-remove-if (lambda (alist-entry) (string= (car alist-entry) "_template"))
+    (cl-remove-if (lambda (alist-entry)
+                    (string-match-p "^_.*" (symbol-name (car alist-entry))))
                   (json-read-from-string
                    (shell-command-to-string
-                    (format "%s -c \"%s\"" prefab-cookiecutter-python-executable src))))))
+                    (format "%s -c \"%s\""
+                            prefab-cookiecutter-python-executable src))))))
 
 (defun prefab--cookiecutter-created-dir (template-dir ctx)
   "Return the created directory implied by TEMPLATE-DIR and CTX (an alist)."
@@ -122,6 +127,47 @@ print(repo_dir, end='')" template)))
   "Return a list of local templates."
   (mapcan #'f-directories prefab-cookiecutter-template-sources))
 
+(defun prefab--alist-to-python-dict (alist)
+  "Convert ALIST to a python dictionary (as a string)."
+  (format "{%s}" (mapconcat #'identity (cl-loop for (key . value) in alist
+                                                collect
+                                                (format "'%s': '%s'" key value))
+                            ", ")))
+
+(defun prefab--run (args)
+  "Run cookiecutter using ARGS."
+  (interactive (list (transient-args transient-current-command)))
+  (let* ((template (cadr (split-string (car args) "=")))
+         (extra-args
+          (mapconcat (lambda (s)
+                       (replace-regexp-in-string "=\\(.*\\)$" "='\\1'" s))
+                     (cdr args) " "))
+         (cmd (format "cookiecutter %s --no-input --output-dir %s %s"
+                      template cookiecutter-output-dir extra-args))
+         (ctx-alist (mapcar (lambda (c) (let ((sp (split-string c "=")))
+                                          (cons (car sp) (cadr sp))))
+                            args)))
+    (when prefab-debug (message "Running command %s" cmd))
+    (let ((response (shell-command-to-string cmd)))
+      (if (string-match-p "^Error:" response)
+          (message response)
+        (dired (prefab--cookiecutter-created-dir
+                (f-join (car prefab-cookiecutter-template-sources) template)
+                (mapcar (lambda (c) (if (string= (car c) "template")
+                                        (cons "_template" (cdr c))
+                                      c)) ctx-alist)))))))
+
+(transient-define-prefix prefab--uri ()
+  :value '("???=nonempty")
+  ["Template"
+   ("t" "name" "" read-string)]
+  ["Context"
+   ("?" "???" "" read-string)]
+  ["Actions"
+   ("c" "Create"    prefab--run)])
+
+;;; Commands
+
 (defun prefab ()
   "Generate a project from a template."
   (interactive)
@@ -150,46 +196,6 @@ print(repo_dir, end='')" template)))
                           in (cons (cons 'template template) ctx)
                           collect (format "%s=%s" (symbol-name key) value)))
     (prefab--uri)))
-
-;; (prefab--cookiecutter-context "emacs-package-template" "/home/laurencewarne/.cookiecutters/emacs-package-template/cookiecutter.json")
-
-(transient-define-prefix prefab--uri ()
-  :value '("???=nonempty")
-  ["Template"
-   ("t" "name" "" read-string)]
-  ["Context"
-   ("?" "???" "" read-string)]
-  ["Actions"
-   ("c" "Create"    prefab--run)])
-
-(defun prefab--alist-to-python-dict (alist)
-  (format "{%s}" (mapconcat #'identity (cl-loop for (key . value) in alist
-                                                collect
-                                                (format "'%s': '%s'" key value))
-                            ", ")))
-
-(defun prefab--run (args)
-  "Run cookiecutter using ARGS."
-  (interactive (list (transient-args transient-current-command)))
-  (let* ((template (cadr (split-string (car args) "=")))
-         (extra-args
-          (mapconcat (lambda (s)
-                       (replace-regexp-in-string "=\\(.*\\)$" "='\\1'" s))
-                     (cdr args) " "))
-         (cmd (format "cookiecutter %s --no-input --output-dir %s %s"
-                      template cookiecutter-output-dir extra-args))
-         (ctx-alist (mapcar (lambda (c) (let ((sp (split-string c "=")))
-                                          (cons (car sp) (cadr sp))))
-                            args)))
-    (when prefab-debug (message "Running command %s" cmd))
-    (let ((response (shell-command-to-string cmd)))
-      (if (string-match-p "^Error:" response)
-          (message response)
-        (dired (prefab--cookiecutter-created-dir
-                (f-join (car prefab-cookiecutter-template-sources) template)
-                (mapcar (lambda (c) (if (string= (car c) "template")
-                                        (cons "_template" (cdr c))
-                                      c)) ctx-alist)))))))
 
 (provide 'prefab)
 
