@@ -3,7 +3,7 @@
 ;; Author: Laurence Warne
 ;; Maintainer: Laurence Warne
 ;; Version: 0.1
-;; Homepage: https://github.com/laurencewarne/prefab.el
+;; URL: https://github.com/laurencewarne/prefab.el
 ;; Package-Requires: ((emacs "27.1") (f "0.2.0") (transient "0.3.0"))
 
 ;; This program is free software; you can redistribute it and/or modify
@@ -157,18 +157,25 @@ print(repo_dir, end='')" template)))
                                                 (format "'%s': '%s'" key value))
                             ", ")))
 
+(defun prefab--escape-quotes (s)
+  "Return S with quotes escaped."
+  (replace-regexp-in-string "'" "\\'" s nil t nil 0))
+
 (defun prefab--run (args)
   "Run cookiecutter using ARGS."
   (interactive (list (transient-args transient-current-command)))
   (let* ((template (cadr (split-string (car args) "=")))
          (extra-args
           (mapconcat (lambda (s)
-                       (replace-regexp-in-string "=\\(.*\\)$" "='\\1'" s))
+                       (replace-regexp-in-string
+                        "=\\(.*\\)$" "=$'\\1'" (prefab--escape-quotes s)))
                      (cdr args) " "))
          (cmd (format "cookiecutter %s --no-input --output-dir %s %s"
-                      template cookiecutter-output-dir extra-args))
-         (ctx-alist (mapcar (lambda (c) (let ((sp (split-string c "=")))
-                                          (cons (car sp) (cadr sp))))
+                      template prefab-cookiecutter-output-dir extra-args))
+         (ctx-alist (mapcar (lambda (c)
+                              (let ((sp (split-string c "=")))
+                                (cons (car sp)
+                                      (prefab--escape-quotes (cadr sp)))))
                             args)))
     (when prefab-debug (message "Running command %s" cmd))
     (let ((response (shell-command-to-string cmd)))
