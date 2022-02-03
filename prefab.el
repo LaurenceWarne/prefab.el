@@ -80,22 +80,32 @@
                            (prefab--keys (cdr keywords) `(,fallback . ,blacklist)))
                    (error "Could not find a complete set of keys")))))))
 
-(defun prefab--cookiecutter-context (template ctx-file)
-  "Return the cookiecutter context for TEMPLATE CTX-FILE."
-  (let ((src (format "from cookiecutter.config import get_user_config
+(defun prefab--cookiecutter-context (template ctx-file &optional original)
+  "Return the cookiecutter context for TEMPLATE CTX-FILE.
+
+If ORIGINAL is non-nil, use the original context defaults and not the context
+from the last run."
+  (let* ((truth (if original "True" "False"))
+         (src (format "from cookiecutter.config import get_user_config
 from cookiecutter.generate import generate_context
 from cookiecutter.replay import load
 import json
 
-config_dict = get_user_config()
-try:
-    ctx = load(config_dict['replay_dir'], '%s')
-except:
-    ctx = generate_context(
+def default_context():
+    return generate_context(
         context_file='%s',
         default_context=config_dict['default_context'],
     )
-print(json.dumps(dict(ctx['cookiecutter'])))" template ctx-file)))
+
+config_dict = get_user_config()
+if %s:
+    ctx = default_context()
+else:
+    try:
+        ctx = load(config_dict['replay_dir'], '%s')
+    except:
+        ctx = default_context()
+print(json.dumps(dict(ctx['cookiecutter'])))" ctx-file truth template)))
     (cl-remove-if (lambda (alist-entry)
                     (string-match-p "^_.*" (symbol-name (car alist-entry))))
                   (json-read-from-string
