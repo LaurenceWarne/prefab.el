@@ -48,6 +48,11 @@
   python-shell-interpreter
   "The path of the python executable to invoke for cookiecutter code.")
 
+(defcustom prefab-cookiecutter-get-context-from-replay
+  nil
+  "If non-nil populate the prefab transient with context from the last run.
+Else populate it using the template defaults.")
+
 ;;; Constants
 
 (defconst prefab-version "0.1.0")
@@ -171,6 +176,35 @@ print(repo_dir, end='')" template)))
   "Return S with quotes escaped."
   (replace-regexp-in-string "'" "\\'" s nil t nil 0))
 
+(defun prefab--transient-set-value (template ctx-file original)
+  "Set the infixes and suffixes of the prefab transient.
+
+TEMPLATE should be the cookiecutter template, CTX-FILE the cookiecutter
+context file path and ORIGINAL should indicate whether to get the default
+context from the replay or the original template defaults."
+  (let* ((ctx (prefab--cookiecutter-context template ctx-file original))
+         (keywords (mapcar (lambda (cell) (symbol-name (car cell))) ctx))
+         (key-lookup (prefab--keys keywords '("t" "c")))
+         (options (cl-loop for (key-sym . value) in ctx
+                           for key = (symbol-name key-sym)
+                           collect
+                           (list (alist-get key key-lookup)
+                                 (replace-regexp-in-string "[_-]+" " " key)
+                                 (concat key "="))))
+         (v-options (vconcat ["Context"] options))
+         (template-options
+          (vconcat ["Template"]
+                   (list (list "t" "Template" (concat "template=")))
+                   (list (list "-" (if original "Replay Last" "Template defaults")
+                               (lambda () (interactive) (prefab--transient-set-value template ctx-file (not original))) ':transient t)))))
+    (transient-replace-suffix 'prefab--uri (list 0) template-options)
+    (transient-replace-suffix 'prefab--uri (list 1) v-options)
+    (oset (get 'prefab--uri 'transient--prefix)
+          :value (cl-loop for (key . value)
+                          in (cons (cons 'template template) ctx)
+                          collect (format "%s=%s" (symbol-name key) value)))
+    (prefab--uri)))
+
 (defun prefab--run (args)
   "Run cookiecutter using ARGS."
   (interactive (list (transient-args transient-current-command)))
@@ -217,27 +251,9 @@ print(repo_dir, end='')" template)))
          (template-path (or (alist-get template alist nil nil #'string=)
                             (progn (message "Downloading template %s" template)
                                    (prefab--cookiecutter-download-template template))))
-         (ctx-file (format "%s/cookiecutter.json" template-path))
-         (ctx (prefab--cookiecutter-context template ctx-file))
-         (keywords (mapcar (lambda (cell) (symbol-name (car cell))) ctx))
-         (key-lookup (prefab--keys keywords '("t" "c")))
-         (options (cl-loop for (key-sym . value) in ctx
-                           for key = (symbol-name key-sym)
-                           collect
-                           (list (alist-get key key-lookup)
-                                 (replace-regexp-in-string "[_-]+" " " key)
-                                 (concat key "="))))
-         (v-options (vconcat ["Context"] options))
-         (template-options
-          (vconcat ["Template"]
-                   (list (list "t" "Template" (concat "template="))))))
-    (transient-replace-suffix 'prefab--uri (list 0) template-options)
-    (transient-replace-suffix 'prefab--uri (list 1) v-options)
-    (oset (get 'prefab--uri 'transient--prefix)
-          :value (cl-loop for (key . value)
-                          in (cons (cons 'template template) ctx)
-                          collect (format "%s=%s" (symbol-name key) value)))
-    (prefab--uri)))
+         (ctx-file (format "%s/cookiecutter.json" template-path)))
+    (prefab--transient-set-value
+     template ctx-file (not prefab-cookiecutter-get-context-from-replay))))
 
 (provide 'prefab)
 
