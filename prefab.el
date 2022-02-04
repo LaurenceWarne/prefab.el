@@ -28,6 +28,7 @@
 (require 'python)
 (require 'json)
 (require 'f)
+(require 'transient)
 (require 'subr-x)
 
 ;;; Custom variables
