@@ -62,10 +62,16 @@
 
 (defcustom prefab-cookiecutter-get-context-from-replay
   nil
-  "If non-nil populate the prefab transient with context from the last run.
-Else populate it using the template defaults."
+  "If non-nil pre-populate the prefab transient with context from the last run.
+Else pre-populate it using the template defaults."
   :group 'prefab
   :type 'boolean)
+
+(defcustom prefab-default-templates
+  '(cookiecutter . ("https://github.com/LaurenceWarne/cookiecutter-eldev"))
+  "Templates to prompt the user for if completing read would otherwise be empty."
+  :group 'prefab
+  :type '(alist :key-type symbol :value-type (repeat string)))
 
 ;;; Constants
 
@@ -267,7 +273,9 @@ context from the replay or the original template defaults."
   (interactive)
   (let* ((templates (prefab--cookiecutter-existing-templates))
          (alist (mapcar (lambda (p) (cons (f-filename p) p)) templates))
-         (template (completing-read "Template: " (mapcar #'f-filename templates)))
+         (template (completing-read "Template: "
+                                    (or (mapcar #'f-filename templates)
+                                        (mapcan #'cdr prefab-default-templates))))
          (template-path (or (alist-get template alist nil nil #'string=)
                             (progn (message "Downloading template %s" template)
                                    (prefab--cookiecutter-download-template template))))
