@@ -272,6 +272,94 @@ context from the replay or the original template defaults."
   ["Actions"
    ("c" "Create"    prefab--run)])
 
+(defclass prefab-source ()
+  nil
+  "A class representing a project generation method.")
+
+(cl-defgeneric prefab-templates ((source prefab-source))
+  "Return a list of templates from SOURCE.")
+
+(cl-defgeneric prefab-replay-exists-p ((source prefab-source) template)
+  "Return t if a replay exists for this TEMPLATE for this SOURCE else nil.")
+
+(cl-defgeneric prefab-default-context ((source prefab-source) template replay)
+  "Return the default context for TEMPLATE using SOURCE.
+
+A non-nil value for REPLAY indicates that context from a replay is preferred.")
+
+(cl-defgeneric prefab-run ((source prefab-source) template context)
+  "Create a project from TEMPLATE and CONTEXT using SOURCE.
+
+CONTEXT is an alist with string keys (template attributes) and values
+ (attribute values)")
+
+;; Implementations
+
+(defclass prefab-cookiecutter-source (prefab-source))
+
+(cl-defmethod prefab-templates ((_ prefab-cookiecutter-source))
+  "Return a list of templates from SOURCE."
+  (mapcan #'f-directories prefab-cookiecutter-template-sources))
+
+(cl-defmethod prefab-replay-exists-p ((_ prefab-cookiecutter-source) template)
+  "Return t if a replay exists for this TEMPLATE for this SOURCE else nil."
+  (f-exists-p
+   (f-swap-ext (f-join prefab-cookiecutter-replay-dir template) "json")))
+
+(cl-defmethod prefab-default-context ((_ prefab-cookiecutter-source)
+                                      template replay)
+  "Return the default context for TEMPLATE using SOURCE.
+
+A non-nil value for REPLAY indicates that context from a replay is preferred."
+  (let* ((template-path
+          (or (alist-get template alist nil nil #'string=)
+              (progn (message "Downloading template %s" template)
+                     (prefab--cookiecutter-download-template template))))
+         (ctx-file (format "%s/cookiecutter.json" template-path))
+         (truth (if replay "False" "True"))
+         (src (format "from cookiecutter.config import get_user_config
+from cookiecutter.generate import generate_context
+from cookiecutter.replay import load
+import json
+
+def default_context():
+    return generate_context(
+        context_file='%s',
+        default_context=config_dict['default_context'],
+    )
+
+config_dict = get_user_config()
+if %s:
+    ctx = default_context()
+else:
+    try:
+        ctx = load(config_dict['replay_dir'], '%s')
+    except:
+        ctx = default_context()
+print(json.dumps(dict(ctx['cookiecutter'])))" ctx-file truth template)))
+    (cl-remove-if
+     (lambda (alist-entry) (string-match-p "^_.*" (symbol-name (car alist-entry))))
+     (json-read-from-string
+      (shell-command-to-string
+       (format "%s -c \"%s\"" prefab-cookiecutter-python-executable src))))))
+
+(cl-defmethod prefab-run ((_ prefab-source) template context)
+  "Create a project from TEMPLATE and CONTEXT using SOURCE."
+  (let* ((extra-args
+          (mapconcat (lambda (s)
+                       (format "%s='%s'" (car s) (prefab--escape-quotes (cdr s))))
+                     context " "))
+         (cmd (format "cookiecutter %s --no-input --output-dir %s %s"
+                      template prefab-cookiecutter-output-dir extra-args))
+         (response (shell-command-to-string cmd)))
+    (if (string-match-p "^Error:" response)
+        (error response)
+      (prefab--cookiecutter-created-dir
+       (f-join (car prefab-cookiecutter-template-sources) template)
+       (mapcar (lambda (c) (if (string= (car c) "template")
+                               (cons "_template" (cdr c))
+                             c)) ctx-alist)))))
+
 ;;; Commands
 
 (defun prefab ()
