@@ -111,39 +111,6 @@ Else pre-populate it using the template defaults."
                            (prefab--keys (cdr keywords) `(,fallback . ,blacklist)))
                    (error "Could not find a complete set of keys")))))))
 
-(defun prefab--cookiecutter-context (template ctx-file &optional original)
-  "Return the cookiecutter context for TEMPLATE CTX-FILE.
-
-If ORIGINAL is non-nil, use the original context defaults and not the context
-from the last run."
-  (let* ((truth (if original "True" "False"))
-         (src (format "from cookiecutter.config import get_user_config
-from cookiecutter.generate import generate_context
-from cookiecutter.replay import load
-import json
-
-def default_context():
-    return generate_context(
-        context_file='%s',
-        default_context=config_dict['default_context'],
-    )
-
-config_dict = get_user_config()
-if %s:
-    ctx = default_context()
-else:
-    try:
-        ctx = load(config_dict['replay_dir'], '%s')
-    except:
-        ctx = default_context()
-print(json.dumps(dict(ctx['cookiecutter'])))" ctx-file truth template)))
-    (cl-remove-if (lambda (alist-entry)
-                    (string-match-p "^_.*" (symbol-name (car alist-entry))))
-                  (json-read-from-string
-                   (shell-command-to-string
-                    (format "%s -c \"%s\""
-                            prefab-cookiecutter-python-executable src))))))
-
 (defun prefab--cookiecutter-created-dir (template-dir ctx)
   "Return the created directory implied by TEMPLATE-DIR and CTX (an alist)."
   (print template-dir)
@@ -207,13 +174,13 @@ print(repo_dir, end='')" template)))
   "Return S with quotes escaped."
   (replace-regexp-in-string "'" "\\'" s nil t nil 0))
 
-(defun prefab--transient-set-value (template ctx-file original)
+(defun prefab--transient-set-value (project-src template replay)
   "Set the infixes and suffixes of the prefab transient.
 
 TEMPLATE should be the cookiecutter template, CTX-FILE the cookiecutter
 context file path and ORIGINAL should indicate whether to get the default
 context from the replay or the original template defaults."
-  (let* ((ctx (prefab--cookiecutter-context template ctx-file original))
+  (let* ((ctx (prefab-default-context project-src template replay))
          (keywords (mapcar (lambda (cell) (symbol-name (car cell))) ctx))
          (key-lookup (prefab--keys keywords '("t" "c")))
          (options (cl-loop for (key-sym . value) in ctx
@@ -225,15 +192,17 @@ context from the replay or the original template defaults."
          (v-options (vconcat ["Context"] options))
          (template-options
           (vconcat ["Template"]
-                   (list (list "t" "Template" (concat "template=")))
+                   (list (list "t" "Template" "template="))
                    (when (prefab--cookiecutter-template-has-replay template)
-                     (list (list "-" (if original "Replay Last" "Template defaults")
-                                 (lambda () (interactive) (prefab--transient-set-value template ctx-file (not original))) ':transient t))))))
+                     (list (list "-"
+                                 (if original "Replay Last" "Template defaults")
+                                 (lambda () (interactive) (prefab--transient-set-value project-src template (not replay))) ':transient t)))))
+         (template-str (prefab-template-display-string project-src template)))
     (transient-replace-suffix 'prefab--uri (list 0) template-options)
     (transient-replace-suffix 'prefab--uri (list 1) v-options)
     (oset (get 'prefab--uri 'transient--prefix)
           :value (cl-loop for (key . value)
-                          in (cons (cons 'template template) ctx)
+                          in (cons (cons 'template template-str) ctx)
                           collect (format "%s=%s" (symbol-name key) value)))
     (prefab--uri)))
 
@@ -241,27 +210,11 @@ context from the replay or the original template defaults."
   "Run cookiecutter using ARGS."
   (interactive (list (transient-args transient-current-command)))
   (let* ((template (cadr (split-string (car args) "=")))
-         (extra-args
-          (mapconcat (lambda (s)
-                       (replace-regexp-in-string
-                        "=\\(.*\\)$" "=$'\\1'" (prefab--escape-quotes s)))
-                     (cdr args) " "))
-         (cmd (format "cookiecutter %s --no-input --output-dir %s %s"
-                      template prefab-cookiecutter-output-dir extra-args))
-         (ctx-alist (mapcar (lambda (c)
-                              (let ((sp (split-string c "=")))
-                                (cons (car sp)
-                                      (prefab--escape-quotes (cadr sp)))))
-                            args)))
-    (when prefab-debug (message "Running command %s" cmd))
-    (let ((response (shell-command-to-string cmd)))
-      (if (string-match-p "^Error:" response)
-          (message response)
-        (dired (prefab--cookiecutter-created-dir
-                (f-join (car prefab-cookiecutter-template-sources) template)
-                (mapcar (lambda (c) (if (string= (car c) "template")
-                                        (cons "_template" (cdr c))
-                                      c)) ctx-alist)))))))
+         (context (mapcar (lambda (s) (let ((split (split-string s "=")))
+                                        (cons (car split) (cadr split))))
+                          args))
+         (out-dir (prefab-run project-src template context)))
+    (dired out-dir)))
 
 (transient-define-prefix prefab--uri ()
   :value '("???=nonempty")
@@ -275,6 +228,11 @@ context from the replay or the original template defaults."
 (defclass prefab-source ()
   nil
   "A class representing a project generation method.")
+
+(cl-defmethod prefab-template-display-string ((source prefab-source) template)
+  "Convert TEMPLATE to a string using SOURCE.
+
+TEMPLATE should be of the form returned by `prefab-templates'.")
 
 (cl-defgeneric prefab-templates ((source prefab-source))
   "Return a list of templates from SOURCE.")
@@ -295,11 +253,18 @@ CONTEXT is an alist with string keys (template attributes) and values
 
 ;; Implementations
 
-(defclass prefab-cookiecutter-source (prefab-source))
+(defclass prefab-cookiecutter-source (prefab-source) nil)
 
 (cl-defmethod prefab-templates ((_ prefab-cookiecutter-source))
   "Return a list of templates from SOURCE."
   (mapcan #'f-directories prefab-cookiecutter-template-sources))
+
+(cl-defmethod prefab-template-display-string
+  ((_ prefab-cookiecutter-source) template)
+  "Convert TEMPLATE to a string suitable to display to a user.
+
+TEMPLATE should be of the form returned by `prefab-templates'."
+  (if (f-exists-p template) (f-filename template) template))
 
 (cl-defmethod prefab-replay-exists-p ((_ prefab-cookiecutter-source) template)
   "Return t if a replay exists for this TEMPLATE for this SOURCE else nil."
@@ -312,9 +277,9 @@ CONTEXT is an alist with string keys (template attributes) and values
 
 A non-nil value for REPLAY indicates that context from a replay is preferred."
   (let* ((template-path
-          (or (alist-get template alist nil nil #'string=)
-              (progn (message "Downloading template %s" template)
-                     (prefab--cookiecutter-download-template template))))
+          (if (file-exists-p template) template
+            (progn (message "Downloading template %s" template)
+                   (prefab--cookiecutter-download-template template))))
          (ctx-file (format "%s/cookiecutter.json" template-path))
          (truth (if replay "False" "True"))
          (src (format "from cookiecutter.config import get_user_config
@@ -365,17 +330,19 @@ print(json.dumps(dict(ctx['cookiecutter'])))" ctx-file truth template)))
 (defun prefab ()
   "Generate a project from a template."
   (interactive)
-  (let* ((templates (prefab--cookiecutter-existing-templates))
-         (alist (mapcar (lambda (p) (cons (f-filename p) p)) templates))
-         (template (completing-read "Template: "
-                                    (or (mapcar #'f-filename templates)
-                                        (mapcan #'cdr prefab-default-templates))))
-         (template-path (or (alist-get template alist nil nil #'string=)
-                            (progn (message "Downloading template %s" template)
-                                   (prefab--cookiecutter-download-template template))))
-         (ctx-file (format "%s/cookiecutter.json" template-path)))
+  (let* ((project-src (prefab-cookiecutter-source))
+         (templates (prefab-templates project-src))
+         (alist (mapcar (lambda (p)
+                          (cons (prefab-template-display-string project-src p) p))
+                        templates))
+         (template-str
+          (completing-read "Template: "
+                           (or (mapcar #'f-filename templates)
+                               (mapcan #'cdr prefab-default-templates)))))
     (prefab--transient-set-value
-     template ctx-file (not prefab-cookiecutter-get-context-from-replay))))
+     project-src
+     (alist-get template-str alist nil nil #'string=)
+     (not prefab-cookiecutter-get-context-from-replay))))
 
 (provide 'prefab)
 
