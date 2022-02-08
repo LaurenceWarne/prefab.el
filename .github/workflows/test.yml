@@ -37,4 +37,5 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         eldev -dtT -C compile --warnings-as-errors
+        eldev lint
         eldev -s -dtT test

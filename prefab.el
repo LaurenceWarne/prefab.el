@@ -231,7 +231,7 @@ original suffix."
   nil
   "A class representing a project generation method.")
 
-(cl-defmethod prefab-template-display-string ((source prefab-source) template)
+(cl-defgeneric prefab-template-display-string ((source prefab-source) template)
   "Convert TEMPLATE to a string using SOURCE.
 
 TEMPLATE should be of the form returned by `prefab-templates'.")
