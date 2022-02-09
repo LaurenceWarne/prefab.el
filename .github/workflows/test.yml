@@ -32,10 +32,9 @@ jobs:
 
     - name: Test the project
       env:
-        COVERALLS_FLAG_NAME: Emacs ${{ matrix.emacs_version }}
-        COVERALLS_PARALLEL: 1
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
+        pip3 install cookiecutter
         eldev -dtT -C compile --warnings-as-errors
         eldev lint
         eldev -s -dtT test
