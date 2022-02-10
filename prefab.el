@@ -117,6 +117,32 @@ Else pre-populate it using the template defaults."
                            (prefab--keys (cdr keywords) `(,fallback . ,blacklist)))
                    (error "Could not find a complete set of keys")))))))
 
+(defun prefab--alist-to-python-dict (alist)
+  "Convert ALIST to a python dictionary (as a string)."
+  (format "{%s}" (mapconcat #'identity (cl-loop for (key . value) in alist
+                                                collect
+                                                (format "'%s': '%s'" key value))
+                            ", ")))
+
+(defun prefab--json-from-python (python-src)
+  "Return JSON returned by executing PYTHON-SRC.
+
+The retuned JSON will be of the form returned by `json-read'"
+  (let ((shell-output
+         (shell-command-to-string
+          (format "%s -c \"%s\""
+                  prefab-cookiecutter-python-executable
+                  python-src)))
+        (error-fmt-string "Got error: '%s' parsing the result of:
+%s
+shell output:
+%s"))
+    (condition-case err
+        (json-read-from-string shell-output)
+      (error
+       (error error-fmt-string
+              (error-message-string err) python-src shell-output)))))
+
 (defun prefab--cookiecutter-conf ()
   "Return the cookiecutter config file as an appropriate python object."
   (if prefab-cookiecutter-config-file
@@ -164,18 +190,6 @@ repo_dir, cleanup = determine_repo_dir(
 print(repo_dir, end='')" (prefab--cookiecutter-conf) template)))
     (shell-command-to-string
      (format "%s -c \"%s\"" prefab-cookiecutter-python-executable src))))
-
-(defun prefab--alist-to-python-dict (alist)
-  "Convert ALIST to a python dictionary (as a string)."
-  (format "{%s}" (mapconcat #'identity (cl-loop for (key . value) in alist
-                                                collect
-                                                (format "'%s': '%s'" key value))
-                            ", ")))
-
-(defun prefab--cookiecutter-template-has-replay (template)
-  "Return t if TEMPLATE has a replay else false."
-  (f-exists-p
-   (f-swap-ext (f-join prefab-cookiecutter-replay-dir template) "json")))
 
 (defun prefab--escape-quotes (s)
   "Return S with quotes escaped."
@@ -331,9 +345,7 @@ print(json.dumps(dict(ctx['cookiecutter'])))" ctx-file (prefab--cookiecutter-con
     (cons
      (cl-remove-if
       (lambda (alist-entry) (string-match-p "^_.*" (symbol-name (car alist-entry))))
-      (json-read-from-string
-       (shell-command-to-string
-        (format "%s -c \"%s\"" prefab-cookiecutter-python-executable src))))
+      (prefab--json-from-python src))
      template-path)))
 
 (cl-defmethod prefab-run ((_ prefab-source) template context)
