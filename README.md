@@ -42,3 +42,12 @@ Now using ![quelpa-use-package](https://github.com/quelpa/quelpa-use-package):
   ;; Where you want project directories to be output
   (setq prefab-cookiecutter-output-dir "~/projects"))
 ```
+
+## Customisation
+
+| Variable                                      | Description                                                                 | Default                                               |
+|-----------------------------------------------|-----------------------------------------------------------------------------|-------------------------------------------------------|
+| `prefab-cookiecutter-config-file`             | The cookiecutter config file location                                       | Left to cookiecutter                                  |
+| `prefab-cookiecutter-output-dir`              | Where cookiecutter should output projects                                   | `(format "%s/.cookiecutter_replay/" (getenv "HOME"))` |
+| `prefab-cookiecutter-python-executable`       | The path of the python executable to invoke for cookiecutter code           | `python-shell-interpreter`                            |
+| `prefab-cookiecutter-get-context-from-replay` | If non-nil pre-populate the prefab transient with context from the last run | `nil`                                                 |
