@@ -8,7 +8,7 @@ https://user-images.githubusercontent.com/17688577/152217438-13f53b7f-5d2a-44d1-
 
 Currently only `cookiecutter` is supported though other tools such as `giter8` and `stack` templates may be implemented in future (PRs are of course welcome!).
 
-## Installing
+## Setup
 
 `cookiecutter` needs to be on your path and `prefab-cookiecutter-python-executable` needs to be set to a Python executable for which `cookiecutter` can be imported as a module.  If you did:
 
@@ -16,7 +16,7 @@ Currently only `cookiecutter` is supported though other tools such as `giter8` a
 pip3 install cookiecutter
 ```
 
-You're fine on both counts, but if you did:
+You're fine on both counts and you can skip to [installation](#installation), but if you did:
 
 ```bash
 pipx install cookiecutter
@@ -29,12 +29,12 @@ Then you will need to:
 (setq prefab-cookiecutter-python-executable "~/.local/pipx/venvs/cookiecutter/bin/python3")
 ```
 
-Now using ![quelpa-use-package](https://github.com/quelpa/quelpa-use-package):
+## Installation
+
+Now you can install it from melpa:
 
 ```lisp
 (use-package prefab
-  :ensure nil
-  :quelpa (prefab :fetcher github :repo "LaurenceWarne/prefab.el" :stable t)
   :bind ("C-c c" . prefab)
   :config
   ;; uncomment to set the cookiecutter python executable
@@ -45,9 +45,9 @@ Now using ![quelpa-use-package](https://github.com/quelpa/quelpa-use-package):
 
 ## Customisation
 
-| Variable                                      | Description                                                                 | Default                                               |
-|-----------------------------------------------|-----------------------------------------------------------------------------|-------------------------------------------------------|
-| `prefab-cookiecutter-config-file`             | The cookiecutter config file location                                       | Left to cookiecutter                                  |
-| `prefab-cookiecutter-output-dir`              | Where cookiecutter should output projects                                   | `(format "%s/.cookiecutter_replay/" (getenv "HOME"))` |
-| `prefab-cookiecutter-python-executable`       | The path of the python executable to invoke for cookiecutter code           | `python-shell-interpreter`                            |
-| `prefab-cookiecutter-get-context-from-replay` | If non-nil pre-populate the prefab transient with context from the last run | `nil`                                                 |
+| Variable                                      | Description                                                                                                                                                                                                                                                                                           | Default                                                                                           |
+|-----------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------|
+| `prefab-cookiecutter-config-file`             | The cookiecutter config file location, note this is optional but can save you some boilerplate, see the cookiecutter [docs](https://cookiecutter.readthedocs.io/en/latest/advanced/user_config.html) for more information.  Only set this variable if your config file is not in `~/.cookiecutterrc`. | Left to cookiecutter (`~/.cookiecutterrc`).  Again, note existence of this file is not necessary. |
+| `prefab-cookiecutter-output-dir`              | Where cookiecutter should output projects                                                                                                                                                                                                                                                             | `(format "%s/projects" (getenv "HOME"))`                                                          |
+| `prefab-cookiecutter-python-executable`       | The path of the python executable to invoke for cookiecutter code                                                                                                                                                                                                                                     | `python-shell-interpreter`                                                                        |
+| `prefab-cookiecutter-get-context-from-replay` | If non-nil pre-populate the prefab transient with context from the last run                                                                                                                                                                                                                           | `nil`                                                                                             |

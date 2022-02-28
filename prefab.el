@@ -1,10 +1,10 @@
-;;; prefab.el --- Integration for project generation tools -*- lexical-binding: t -*-
+;;; prefab.el --- Integration for project generation tools like cookiecutter -*- lexical-binding: t -*-
 
 ;; Author: Laurence Warne
 ;; Maintainer: Laurence Warne
 ;; Version: 0.1
 ;; URL: https://github.com/laurencewarne/prefab.el
-;; Package-Requires: ((emacs "27.1") (f "0.2.0") (transient "0.3.0"))
+;; Package-Requires: ((emacs "27.1") (f "0.2.0") (transient "0.3.7"))
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -50,7 +50,18 @@
 
 (defcustom prefab-cookiecutter-config-file
   nil
-  "The cookiecutter config file location."
+  "The cookiecutter config file location.
+
+Only change this if your cookiecutter config file is not located in the
+standard location: '~/.cookiecutterrc'.
+
+Creating a config file is not necessary but can save some boilerplate.  For
+example specifying 'author' and 'email' may be a good idea as these are common
+template attributes.
+
+See
+URL 'https://cookiecutter.readthedocs.io/en/latest/advanced/user_config.html'
+for more information."
   :group 'prefab
   :type 'file)
 
@@ -75,7 +86,9 @@
 (defcustom prefab-cookiecutter-get-context-from-replay
   nil
   "If non-nil pre-populate the prefab transient with context from the last run.
-Else pre-populate it using the template defaults."
+
+Else pre-populate it using the template defaults, note these can be toggled
+in the prefab transient prefix with the '-' key."
   :group 'prefab
   :type 'boolean)
 
@@ -127,7 +140,7 @@ Else pre-populate it using the template defaults."
 (defun prefab--json-from-python (python-src)
   "Return JSON returned by executing PYTHON-SRC.
 
-The retuned JSON will be of the form returned by `json-read'"
+The returned JSON will be of the form returned by `json-read'"
   (let ((shell-output
          (shell-command-to-string
           (format "%s -c \"%s\""
