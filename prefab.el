@@ -102,6 +102,12 @@ in the prefab transient prefix with the '-' key."
 
 (defconst prefab-version "0.1.0")
 
+(defconst prefab--cookiecutter-not-found-err-msg
+  "'cookiecutter' was not found on the PATH.
+
+Visit https://cookiecutter.readthedocs.io/en/latest/installation.html for
+installation instructions.")
+
 ;;; Internal variables
 
 (defvar prefab-debug nil)
@@ -389,19 +395,21 @@ CONTEXT is an alist with string keys (template attributes) and values
 (defun prefab ()
   "Generate a project from a template."
   (interactive)
-  (let* ((project-src (prefab-cookiecutter-source))
-         (templates (prefab-templates project-src))
-         (alist (mapcar (lambda (p)
-                          (cons (prefab-template-display-string project-src p) p))
-                        templates))
-         (template-str
-          (completing-read "Template: "
-                           (or (mapcar #'f-filename templates)
-                               (mapcan #'cdr prefab-default-templates)))))
-    (prefab--transient-set-value
-     project-src
-     (or (alist-get template-str alist nil nil #'string=) template-str)
-     prefab-cookiecutter-get-context-from-replay)))
+  (if (executable-find "cookiecutter")
+      (let* ((project-src (prefab-cookiecutter-source))
+             (templates (prefab-templates project-src))
+             (alist (mapcar (lambda (p)
+                              (cons (prefab-template-display-string project-src p) p))
+                            templates))
+             (template-str
+              (completing-read "Template: "
+                               (or (mapcar #'f-filename templates)
+                                   (mapcan #'cdr prefab-default-templates)))))
+        (prefab--transient-set-value
+         project-src
+         (or (alist-get template-str alist nil nil #'string=) template-str)
+         prefab-cookiecutter-get-context-from-replay))
+    (error prefab--cookiecutter-not-found-err-msg)))
 
 (provide 'prefab)
 
