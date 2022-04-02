@@ -138,10 +138,14 @@ installation instructions.")
 
 (defun prefab--alist-to-python-dict (alist)
   "Convert ALIST to a python dictionary (as a string)."
-  (format "{%s}" (mapconcat #'identity (cl-loop for (key . value) in alist
-                                                collect
-                                                (format "'%s': '%s'" key value))
-                            ", ")))
+  (format "{%s}"
+          (mapconcat #'identity
+                     (cl-loop for (key . value) in alist
+                              collect
+                              (format "'%s': '%s'"
+                                      (prefab--escape-quotes key)
+                                      (prefab--escape-quotes value)))
+                     ", ")))
 
 (defun prefab--json-from-python (python-src)
   "Return JSON returned by executing PYTHON-SRC.
@@ -187,9 +191,14 @@ name_tmpl = env.from_string(dirname)
 rendered_dirname = name_tmpl.render(**ctx)
 dir_to_create = os.path.normpath(os.path.join(output_dir, rendered_dirname))
 print(dir_to_create, end='')"
-                      ctx-str template-dir prefab-cookiecutter-output-dir)))
-    (shell-command-to-string
-     (format "%s -c \"%s\"" prefab-cookiecutter-python-executable src))))
+                      ctx-str template-dir prefab-cookiecutter-output-dir))
+         (output
+          (shell-command-to-string
+           (format "%s -c \"%s\"" prefab-cookiecutter-python-executable src))))
+    ;; TODO DRY
+    (if (string-match-p "^Error:" output)
+        (error "Error getting output directory: %s" output)
+      output)))
 
 (defun prefab--cookiecutter-download-template (template)
   "Download TEMPLATE and return the template directory."
