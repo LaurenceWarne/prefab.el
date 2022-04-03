@@ -1,6 +1,6 @@
 # Prefab.el: Project Generation for Emacs
 
-[![Min Emacs Version](https://img.shields.io/badge/Emacs-27+-7F5AB6?logo=gnu-emacs)](https://www.gnu.org/software/emacs/)
+[![Min Emacs Version](https://img.shields.io/badge/Emacs-27+-7F5AB6?logo=gnu-emacs)](https://www.gnu.org/software/emacs/) [![MELPA](https://melpa.org/packages/prefab-badge.svg)](https://melpa.org/#/prefab)
 
 Prefab is a tool aiming to provide integration for project generation tools like [cookiecutter](https://github.com/cookiecutter/cookiecutter).
 
@@ -51,3 +51,7 @@ Now you can install it from melpa:
 | `prefab-cookiecutter-output-dir`              | Where cookiecutter should output projects                                                                                                                                                                                                                                                             | `(format "%s/projects" (getenv "HOME"))`                                                          |
 | `prefab-cookiecutter-python-executable`       | The path of the python executable to invoke for cookiecutter code                                                                                                                                                                                                                                     | `python-shell-interpreter`                                                                        |
 | `prefab-cookiecutter-get-context-from-replay` | If non-nil pre-populate the prefab transient with context from the last run                                                                                                                                                                                                                           | `nil`                                                                                             |
+
+## Contributing
+
+`prefab.el` has been tested primarily on the most popular cookiecutter templates, please open an issue or PR if you find a template which doesn't work.
