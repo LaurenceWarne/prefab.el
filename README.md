@@ -43,6 +43,10 @@ Now you can install it from melpa:
   (setq prefab-cookiecutter-output-dir "~/projects"))
 ```
 
+## Usage
+
+Just `M-x prefab`, from there you are prompted with a list of your local cookiecutter templates (= templates you have used previously), alternatively you can paste in a new cookiecutter url e.g. `https://github.com/audreyfeldroy/cookiecutter-pypackage`.
+
 ## Customisation
 
 | Variable                                      | Description                                                                                                                                                                                                                                                                                           | Default                                                                                           |
