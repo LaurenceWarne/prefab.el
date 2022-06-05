@@ -280,6 +280,20 @@ original suffix."
     (put 'prefab--uri 'prefab-template resolved-template)
     (prefab--uri)))
 
+(defun prefab--ask-for-template (project-src)
+  "Prompt the user for template using PROJECT-SRC to get choices."
+  (let* ((templates (prefab-templates project-src))
+         (alist
+          (mapcar (lambda (p)
+                    (cons (prefab-template-display-string project-src p) p))
+                  templates))
+         (template-choice
+          (completing-read "Template: "
+                           (or (mapcar #'f-filename templates)
+                               (mapcan #'cdr prefab-default-templates)))))
+    (or (alist-get template-choice alist nil nil #'string=)
+        template-choice)))
+
 (defun prefab--run (args)
   "Run cookiecutter using ARGS."
   (interactive (list (transient-args transient-current-command)))
@@ -422,22 +436,16 @@ CONTEXT is an alist with string keys (template attributes) and values
 
 ;;; Commands
 
-(defun prefab ()
-  "Generate a project from a template."
+(defun prefab (&optional template)
+  "Generate a project from TEMPLATE if passed, else prompting for one."
   (interactive)
   (if (executable-find "cookiecutter")
       (let* ((project-src (prefab-cookiecutter-source))
-             (templates (prefab-templates project-src))
-             (alist (mapcar (lambda (p)
-                              (cons (prefab-template-display-string project-src p) p))
-                            templates))
              (template-str
-              (completing-read "Template: "
-                               (or (mapcar #'f-filename templates)
-                                   (mapcan #'cdr prefab-default-templates)))))
+              (or template (prefab--ask-for-template project-src))))
         (prefab--transient-set-value
          project-src
-         (or (alist-get template-str alist nil nil #'string=) template-str)
+         template-str
          prefab-cookiecutter-get-context-from-replay))
     (error prefab--cookiecutter-not-found-err-msg)))
 
