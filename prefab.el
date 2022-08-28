@@ -46,7 +46,7 @@
   (list (format "%s/.cookiecutters" (getenv "HOME")))
   "List of directories to search for cookiecutter templates."
   :group 'prefab
-  :type 'directory)
+  :type '(repeat  directory))
 
 (defcustom prefab-cookiecutter-config-file
   nil
