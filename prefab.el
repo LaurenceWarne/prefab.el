@@ -56,11 +56,11 @@ Only change this if your cookiecutter config file is not located in the
 standard location: \\='~/.cookiecutterrc\\='.
 
 Creating a config file is not necessary but can save some boilerplate.  For
-example specifying 'author' and 'email' may be a good idea as these are common
-template attributes.
+example specifying \\='author\\=' and \\='email\\=' may be a good idea as these
+are common template attributes.
 
 See
-URL 'https://cookiecutter.readthedocs.io/en/latest/advanced/user_config.html'
+URL `https://cookiecutter.readthedocs.io/en/latest/advanced/user_config.html'
 for more information."
   :group 'prefab
   :type 'file)
