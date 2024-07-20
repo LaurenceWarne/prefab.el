@@ -192,7 +192,11 @@ import os.path
 ctx = %s
 envvars = ctx.get('cookiecutter', {}).get('_jinja2_env_vars', {})
 env = StrictEnvironment(context=ctx, keep_trailing_newline=True, **envvars)
-template_dir = find_template('%s', env)
+template_dir_string = '%s'
+try:
+    template_dir = find_template(template_dir_string, env)
+except TypeError:
+    template_dir = find_template(template_dir_string)
 dirname = os.path.split(template_dir)[1]
 output_dir = '%s'
 
