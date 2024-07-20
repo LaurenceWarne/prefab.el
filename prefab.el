@@ -53,7 +53,7 @@
   "The cookiecutter config file location.
 
 Only change this if your cookiecutter config file is not located in the
-standard location: '~/.cookiecutterrc'.
+standard location: \\='~/.cookiecutterrc\\='.
 
 Creating a config file is not necessary but can save some boilerplate.  For
 example specifying 'author' and 'email' may be a good idea as these are common
@@ -245,7 +245,7 @@ print(repo_dir, end='')" (prefab--cookiecutter-conf) template))
 (defun prefab--escape-quotes-bash (s)
   "Return S with quotes escaped, suitable for bash.
 
-See URL 'https://stackoverflow.com/questions/1250079/how-to-escape-single-quotes-within-single-quoted-strings'."
+See URL `https://stackoverflow.com/questions/1250079/how-to-escape-single-quotes-within-single-quoted-strings'."
   (replace-regexp-in-string "'" "'\"'\"'" s nil t nil 0))
 
 (defun prefab--transient-set-value (project-src template replay)
@@ -321,20 +321,20 @@ original suffix."
   nil
   "A class representing a project generation method.")
 
-(cl-defgeneric prefab-template-display-string ((source prefab-source) template)
+(cl-defgeneric prefab-template-display-string (source template)
   "Convert TEMPLATE to a string using SOURCE.
 
 TEMPLATE should be of the form returned by `prefab-templates'.")
 
-(cl-defgeneric prefab-templates ((source prefab-source))
+(cl-defgeneric prefab-templates (source)
   "Return a list of templates from SOURCE.")
 
-(cl-defgeneric prefab-replay-exists-p ((source prefab-source) template)
+(cl-defgeneric prefab-replay-exists-p (source template)
   "Return t if a replay exists for this TEMPLATE for this SOURCE else nil.
 
 TEMPLATE should be of the form returned by `prefab-templates'")
 
-(cl-defgeneric prefab-default-context ((source prefab-source) template replay)
+(cl-defgeneric prefab-default-context (source template replay)
   "Return the default template resource context for TEMPLATE using SOURCE.
 
 This method should return a cons cell whose `car' is the default context and
@@ -343,7 +343,7 @@ output template resource should is specific to the implementation though they
 should both be strings.  A non-nil value for REPLAY indicates that context
 from a replay is preferred.")
 
-(cl-defgeneric prefab-run ((source prefab-source) template context)
+(cl-defgeneric prefab-run (source template context)
   "Create a project from TEMPLATE and CONTEXT using SOURCE.
 
 CONTEXT is an alist with string keys (template attributes) and values
